@@ -186,6 +186,13 @@ func (b *Bwhatsapp) Login() error {
 func (b *Bwhatsapp) Disconnect() error {
 	// We could Logout, but that would close the session completely and would require a new QR code scan
 	// https://github.com/Rhymen/go-whatsapp/blob/c31092027237441cffba1b9cb148eadf7c83c3d2/session.go#L377-L381
+
+	// TODO remove handlers from old connection https://github.com/Rhymen/go-whatsapp/issues/112
+
+	//b.conn.Close() TODO Close() needs to be exported https://github.com/Rhymen/go-whatsapp/issues/106#issuecomment-468662031
+	b.conn = nil
+	b.session = nil
+
 	return nil
 }
 

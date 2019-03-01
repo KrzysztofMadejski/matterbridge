@@ -21,7 +21,16 @@ Check:
 
 // HandleError received from WhatsApp
 func (b *Bwhatsapp) HandleError(err error) {
-	b.Log.Errorf("%v", err) // TODO implement proper handling? at least respond to different error types
+	b.Log.Errorf("%v", err)
+
+	// handle: unexpected websocket close: websocket: close 1006 (abnormal closure): unexpected EOF
+	if strings.Contains(err.Error(), "unexpected websocket close") {
+		b.Remote <- config.Message{Account: b.Account, Event: config.EventFailure}
+		return
+	}
+
+	// TODO implement proper handling? at least respond to different error types
+	b.Log.Errorf("TODO WhatsApp bridge should handle this: %v", err)
 }
 
 // HandleTextMessage sent from WhatsApp, relay it to the brige

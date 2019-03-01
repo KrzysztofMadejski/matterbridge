@@ -11,9 +11,7 @@ import (
 
 	"github.com/42wim/matterbridge/bridge"
 	"github.com/42wim/matterbridge/bridge/config"
-
 	"github.com/Rhymen/go-whatsapp"
-
 	whatsappExt "maunium.net/go/mautrix-whatsapp/whatsapp-ext"
 )
 
@@ -81,26 +79,31 @@ func (b *Bwhatsapp) Connect() error {
 	b.Log.Debugln("WhatsApp connection successful")
 
 	// load existing session in order to keep it between restarts
-	if b.session == nil {
-		var session whatsapp.Session
-		session, err = b.readSession()
+	var session whatsapp.Session
+	session, err = b.readSession()
 
+	if err == nil {
+		b.Log.Debugln("Restoring WhatsApp session..")
+
+		// https://github.com/Rhymen/go-whatsapp#restore
+		session, err = b.conn.RestoreSession(session)
 		if err == nil {
-			b.Log.Debugln("Restoring WhatsApp session..")
-
-			// https://github.com/Rhymen/go-whatsapp#restore
-			session, err = b.conn.RestoreSession(session)
-			if err != nil {
-				// TODO return or continue to normal login?
-				// restore session connection timed out (I couldn't get over it without logging in again)
-				return errors.New("failed to restore session: " + err.Error())
-			}
-
 			b.session = &session
 			b.Log.Debugln("Session restored successfully!")
+
 		} else {
-			b.Log.Warn(err.Error())
+			if err.Error() == "restore session connection timed out" {
+				// that happens if client got kicked out, or otherwise the current session is wrong
+				// we need to start a new one = new login, means scanning QR code
+				return errors.New("Restore session connection timed out. " +
+					"Make sure your phone is connected to the internet. If problem persists, delete the session file and log in again.")
+
+			} else {
+				return errors.New("failed to restore session: " + err.Error())
+			}
 		}
+	} else {
+		b.Log.Warn(err.Error())
 	}
 
 	// login to a new session

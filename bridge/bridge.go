@@ -3,6 +3,7 @@ package bridge
 import (
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/42wim/matterbridge/bridge/config"
 	"github.com/sirupsen/logrus"
@@ -28,6 +29,9 @@ type Bridge struct {
 	Log            *logrus.Entry
 	Config         config.Config
 	General        *config.Protocol
+
+	reconnectMutex      sync.RWMutex
+	lastReconnectAtNano int64
 }
 
 type Config struct {
@@ -77,6 +81,47 @@ func (b *Bridge) joinChannels(channels map[string]config.ChannelInfo, exists map
 		}
 	}
 	return nil
+}
+
+// ReconnectGuarded reconnect while making sure there is only one reconnection process
+func (br *Bridge) Reconnect() {
+	// remember when the ask to reconnect came
+	reconnectThreadStart := time.Now().UnixNano()
+
+	// lock reconnecting in case multiple/stacked errors ask for reconnection
+	br.reconnectMutex.Lock()
+	defer br.reconnectMutex.Unlock()
+
+	if reconnectThreadStart < br.lastReconnectAtNano {
+		// we already reconnected since the ask came, drop it
+		br.Log.Debug("Dropping reconnection request. Already reconnected")
+		return
+	}
+
+	br.lastReconnectAtNano = reconnectThreadStart
+
+	// actual reconnect
+	// TODO it would be cool if bridges could override it, they might have different timeouts, etc.
+	if err := br.Disconnect(); err != nil {
+		br.Log.Errorf("Disconnect() %s failed: %s", br.Account, err)
+	}
+	time.Sleep(time.Second * 5)
+RECONNECT:
+	br.Log.Infof("Reconnecting %s", br.Account)
+	err := br.Connect()
+	if err != nil {
+		br.Log.Errorf("Reconnection failed: %s. Trying again in 60 seconds", err)
+		time.Sleep(time.Second * 60)
+		goto RECONNECT
+	}
+	br.Joined = make(map[string]bool)
+	if err := br.JoinChannels(); err != nil {
+		br.Log.Errorf("JoinChannels() %s failed: %s", br.Account, err)
+	}
+
+	// mark when we did last reconnect and allow processing of other reconnect messages
+	time.Sleep(time.Second * 1)
+	br.lastReconnectAtNano = time.Now().UnixNano()
 }
 
 func (b *Bridge) GetBool(key string) bool {

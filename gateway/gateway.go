@@ -5,7 +5,6 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/42wim/matterbridge/bridge"
 	"github.com/42wim/matterbridge/bridge/config"
@@ -124,25 +123,6 @@ func (gw *Gateway) mapChannelsToBridge(br *bridge.Bridge) {
 		if br.Account == channel.Account {
 			br.Channels[ID] = *channel
 		}
-	}
-}
-
-func (gw *Gateway) reconnectBridge(br *bridge.Bridge) {
-	if err := br.Disconnect(); err != nil {
-		gw.logger.Errorf("Disconnect() %s failed: %s", br.Account, err)
-	}
-	time.Sleep(time.Second * 5)
-RECONNECT:
-	gw.logger.Infof("Reconnecting %s", br.Account)
-	err := br.Connect()
-	if err != nil {
-		gw.logger.Errorf("Reconnection failed: %s. Trying again in 60 seconds", err)
-		time.Sleep(time.Second * 60)
-		goto RECONNECT
-	}
-	br.Joined = make(map[string]bool)
-	if err := br.JoinChannels(); err != nil {
-		gw.logger.Errorf("JoinChannels() %s failed: %s", br.Account, err)
 	}
 }
 

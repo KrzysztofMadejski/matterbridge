@@ -24,7 +24,7 @@ func (r *Router) handleEventFailure(msg *config.Message) {
 	for _, gw := range r.Gateways {
 		for _, br := range gw.Bridges {
 			if msg.Account == br.Account {
-				go gw.reconnectBridge(br)
+				go br.Reconnect()
 				return
 			}
 		}
